@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 from easy_tdx.exceptions import TdxConnectionError
-from easy_tdx.transport.sync import TdxConnection
+from easy_tdx.transport.sync import TdxConnection, ping_all, ping_host
 
 
 class _FakeSocket:
@@ -42,3 +42,31 @@ def test_sync_connection_closes_socket_when_setup_fails() -> None:
     assert sock.connected_to == ("127.0.0.1", 7709)
     assert sock.closed is True
     assert conn._sock is None
+
+
+def test_ping_host_returns_none_when_server_closes_during_handshake() -> None:
+    class ClosingSocket(_FakeSocket):
+        def sendall(self, data: bytes) -> None:
+            pass
+
+        def recv(self, n: int) -> bytes:
+            return b""
+
+    sock = ClosingSocket()
+    with patch("easy_tdx.transport.sync.socket.socket", return_value=sock):
+        assert ping_host("127.0.0.1", port=7709, timeout=0.2) is None
+
+    assert sock.closed is True
+
+
+def test_ping_all_ignores_a_handshake_failure_from_one_host() -> None:
+    def ping_with_one_closed_host(host: str, port: int, timeout: float) -> float:
+        if host == "closed":
+            raise TdxConnectionError("连接被服务器关闭")
+        return 0.01
+
+    with patch(
+        "easy_tdx.transport.sync.ping_host",
+        side_effect=ping_with_one_closed_host,
+    ):
+        assert ping_all(["available", "closed"], port=7709, timeout=0.2) == [("available", 0.01)]

@@ -85,6 +85,8 @@ def parse_adjust(s: str) -> Adjust:
 _BOARD_TYPE_MAP: dict[str, BoardType] = {
     "HY": BoardType.HY,
     "INDUSTRY": BoardType.HY,
+    "HY2": BoardType.HY2,
+    "INDUSTRY2": BoardType.HY2,
     "GN": BoardType.GN,
     "CONCEPT": BoardType.GN,
     "FG": BoardType.FG,

@@ -6,7 +6,7 @@ import click
 
 
 @click.command("board-list")
-@click.option("--type", "board_type", default="ALL", help="板块类型: ALL/HY/GN/FG/DQ/OTHER")
+@click.option("--type", "board_type", default="ALL", help="板块类型: ALL/HY/HY2/GN/FG/DQ/OTHER")
 @click.option("--count", default=10000, type=int, help="请求数量")
 @click.option("--table", "use_table", is_flag=True, help="表格输出")
 @click.option("--output", "output_fmt", type=click.Choice(["json", "table", "csv"]), default="json")

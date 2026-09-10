@@ -10,7 +10,6 @@ from ...codec.frame import HEADER_SIZE, decompress_body, parse_header
 from ...config import get_best_ex_host, get_ex_hosts
 from ...exceptions import TdxConnectionError
 from ..commands.get_instrument_count import GetExInstrumentCountCmd
-from ..models import KNOWN_EX_HOSTS
 
 if TYPE_CHECKING:
     from ...commands.base import BaseCommand
@@ -39,7 +38,7 @@ def ping_ex_host(
         if hdr.zipsize > 0:
             _recv_exact_sock(sock, hdr.zipsize)
         return time.monotonic() - t0
-    except OSError:
+    except (OSError, TdxConnectionError):
         return None
     finally:
         try:
@@ -63,7 +62,12 @@ def ping_ex_all(
         futures = {pool.submit(ping_ex_host, h, port, timeout): h for h in hosts}
         for fut in concurrent.futures.as_completed(futures):
             host = futures[fut]
-            latency = fut.result()
+            try:
+                latency = fut.result()
+            except (OSError, TdxConnectionError):
+                # A server can accept TCP and then close during the handshake.
+                # Treat it as unavailable, just like a connection failure.
+                continue
             if latency is not None:
                 results.append((host, latency))
     results.sort(key=lambda t: t[1])

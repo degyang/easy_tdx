@@ -47,6 +47,48 @@ commands 层不依赖 transport，可独立单测。修改 codec 或 commands �
 - `Market.BJ` 的 `get_security_list()` 不能稳定获取（服务器端问题），不要尝试依赖它。
 - `limit_up` / `limit_down` 在 `SecurityQuote` 中默认为 `None`，涨跌停价应通过 `get_price_limits()` 或 `compute_price_limits()` 计算。
 
+## 常用行情查询
+
+### 服务器测速与优选
+
+```bash
+easy-tdx ping --timeout 3 --output json
+```
+
+`ping` 只展示候选服务器的测速结果，不会保存最佳地址。`TdxClient.from_best_host()`、`MacClient.from_best_host()` 等 Python 工厂方法会选择最低延迟的可用服务器，并将最佳地址保存到 `~/.easy_tdx/config.json`。候选 IP 池默认维护在 `config.py`；本地配置文件或 `EASY_TDX_KNOWN_HOSTS` 可覆盖标准行情候选池。
+
+### 行业板块与行业日 K
+
+```bash
+# 通达信一级、二级行业板块完整目录
+easy-tdx board-list --type HY --output csv
+easy-tdx board-list --type HY2 --output csv
+
+# 使用目录返回的 market、code 查询行业板块日 K，例如 market=SH、code=881165
+easy-tdx kline SH 881165 --period DAILY --count 250 --output csv
+```
+
+`board-list` 返回行业板块的 `market`、`code`、`name` 等字段。CLI 的 `kline` 走 MAC 协议的 `MacClient.get_stock_kline()`，可查询行业板块代码；不要改用标准协议的 `TdxClient.get_index_bars()` 查询此类 `88xxxx` 板块代码，该接口可能返回空响应。
+
+### 实时指标与日 K 衍生指标
+
+```bash
+easy-tdx quote "SH 600519" --output json
+```
+
+实时 `quote` 默认包含 `vol_ratio`（量比）、`turnover`（换手率）、`vol`（成交量）和 `float_shares`（流通股本）。日 K 不包含 `vol_ratio` 或 `turnover`，但收盘后可推算：
+
+```python
+# vol 的单位为手；float_shares 的单位为万股，结果为百分比数值。
+bars["turnover_pct"] = bars["vol"] / float_shares
+
+# 收盘量比：当日成交量 / 前 5 个交易日平均成交量。
+bars = bars.sort_values("datetime")
+bars["vol_ratio_close"] = bars["vol"] / bars["vol"].shift(1).rolling(5).mean()
+```
+
+历史换手率应按流通股本变化（解禁、增发、送配、拆合股等）的生效日期分段计算。盘后 `vol_ratio_close` 是基于完整日成交量的收盘口径；盘中实时量比还需要同一时刻的历史分时累计成交量，不能只由日 K 严格复原。
+
 ## 代码风格
 
 - ruff: line-length 100, target py310, rules: E/F/I/UP
